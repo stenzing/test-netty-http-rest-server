@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 import static io.netty.util.CharsetUtil.UTF_8;
@@ -31,10 +32,9 @@ import static io.netty.util.CharsetUtil.UTF_8;
 public class APIRequestDecoder extends MessageToMessageDecoder<FullHttpRequest> {
 
     private static final Pattern balanceCallUserIdPattern = Pattern.compile("/balance/([a-zA-Z0-9]+)");
-    ValidatorFactory factory = Validation.buildDefaultValidatorFactory();
-    Validator validator = factory.getValidator();
-
     private final ObjectMapper mapper;
+    private ValidatorFactory factory = Validation.buildDefaultValidatorFactory();
+    private Validator validator = factory.getValidator();
 
     private static void sendErrorReply(ChannelHandlerContext channelHandlerContext, String msg, HttpResponseStatus badRequest) {
         final DefaultFullHttpResponse response = new DefaultFullHttpResponse(
@@ -51,11 +51,11 @@ public class APIRequestDecoder extends MessageToMessageDecoder<FullHttpRequest> 
         try {
 
             if (completeRequest.method() == HttpMethod.POST && completeRequest.uri().equals("/transfer")) {
-                handleTransferRequest(channelHandlerContext, completeRequest, list);
+                handleTransferRequest(completeRequest, list);
             } else if (completeRequest.method() == HttpMethod.GET && completeRequest.uri().startsWith("/balance")) {
-                handleBalanceRequest(channelHandlerContext, completeRequest, list);
+                handleBalanceRequest(completeRequest, list);
             } else if (completeRequest.method() == HttpMethod.POST && completeRequest.uri().startsWith("/topup")) {
-                handleTopupRequest(channelHandlerContext, completeRequest, list);
+                handleTopupRequest(completeRequest, list);
             } else {
                 sendErrorReply(channelHandlerContext,
                         "Command not recognized",
@@ -68,54 +68,58 @@ public class APIRequestDecoder extends MessageToMessageDecoder<FullHttpRequest> 
         }
     }
 
-    private void handleBalanceRequest(ChannelHandlerContext channelHandlerContext, FullHttpRequest completeRequest, List<Object> list)
-            throws IOException {
+    private void handleBalanceRequest(FullHttpRequest completeRequest, List<Object> list) {
 
         Matcher matcher = balanceCallUserIdPattern.matcher(completeRequest.uri());
+
+        BalanceRequest.BalanceRequestBuilder reqB = BalanceRequest.builder();
         if (matcher.matches()) {
-            BalanceRequest req = BalanceRequest.builder()
-                    .userId(matcher.group(1))
-                    .txId(UUID.randomUUID().toString())
-                    .build();
-            Set<ConstraintViolation<BalanceRequest>> violations = validator.validate(req);
-            if (violations.isEmpty()) {
-                list.add(req);
-            } else {
-                throw new ValidationException("Validation failed");
-            }
-            log.trace("[{}] Balance request parsing successful", req.getTxId());
-        } else {
-            throw new IOException("Could not find user id in request");
+            reqB.userId(matcher.group(1));
         }
+        BalanceRequest req = reqB.txId(UUID.randomUUID().toString())
+                .build();
+        Set<String> violations = validator.validate(req)
+                .parallelStream()
+                .map(ConstraintViolation::getMessage)
+                .collect(Collectors.toSet());
+        evaluateViolations(violations, () -> list.add(req));
+        log.trace("[{}] Balance request parsing successful", req.getTxId());
     }
 
-    private void handleTransferRequest(ChannelHandlerContext channelHandlerContext, FullHttpRequest completeRequest, List<Object> list)
+    private void handleTransferRequest(FullHttpRequest completeRequest, List<Object> list)
             throws IOException {
         TransferRequest req = mapper.readValue(completeRequest.content().toString(UTF_8), TransferRequest.class)
                 .withTxId(UUID.randomUUID().toString())
                 .withTransferTs(LocalDateTime.now());
-        Set<ConstraintViolation<TransferRequest>> violations = validator.validate(req);
-        if (violations.isEmpty()) {
-            list.add(req);
-        } else {
-            throw new ValidationException("Validation failed");
-        }
+        Set<String> violations = validator.validate(req)
+                .parallelStream()
+                .map(ConstraintViolation::getMessage)
+                .collect(Collectors.toSet());
+        evaluateViolations(violations, () -> list.add(req));
         log.trace("[{}] Transfer request parsing successful", req.getTxId());
     }
 
 
-    private void handleTopupRequest(ChannelHandlerContext channelHandlerContext, FullHttpRequest completeRequest, List<Object> list)
+    private void handleTopupRequest(FullHttpRequest completeRequest, List<Object> list)
             throws IOException {
         TopupRequest req = mapper.readValue(completeRequest.content().toString(UTF_8), TopupRequest.class)
                 .withTxId(UUID.randomUUID().toString())
                 .withTransferTs(LocalDateTime.now());
-        Set<ConstraintViolation<TopupRequest>> violations = validator.validate(req);
-        if (violations.isEmpty()) {
-            list.add(req);
-        } else {
-            throw new ValidationException("Validation failed");
-        }
+        Set<String> violations = validator.validate(req)
+                .parallelStream()
+                .map(ConstraintViolation::getMessage)
+                .collect(Collectors.toSet());
+        evaluateViolations(violations, () -> list.add(req));
         log.trace("[{}] Topup request parsing successful", req.getTxId());
 
+    }
+
+    private void evaluateViolations(Set<String> violations, Runnable supplier) {
+        if (violations.isEmpty()) {
+            supplier.run();
+        } else {
+            String errors = String.join(";", violations);
+            throw new ValidationException("Validation failed: " + errors);
+        }
     }
 }

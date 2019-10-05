@@ -1,5 +1,5 @@
 package sg.sample.model;
 
 public interface APIResponse {
-    public String getTxId();
+    String getTxId();
 }
