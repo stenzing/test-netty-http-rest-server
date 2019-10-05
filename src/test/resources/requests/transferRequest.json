@@ -1,0 +1,6 @@
+{
+  "userIdFrom": "SomeUserId1",
+  "userIdTo": "SomeUserId2",
+  "amount": 123.4,
+  "currency": "USD"
+}
