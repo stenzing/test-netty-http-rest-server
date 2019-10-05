@@ -2,16 +2,25 @@ package sg.sample.bl;
 
 import lombok.Builder;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import sg.sample.model.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
+@Slf4j
 public class InMemoryTransferService implements TransferService {
 
+    public static final String ERROR_WHILE_EXECUTING_COMMAND = "Error while Executing command: {}";
     final List<AccountingEntry> ledger = new LinkedList<>();
+
+    private final ExecutorService ex = Executors.newSingleThreadExecutor();
 
     @Override
     public TopupResponse process(TopupRequest request) {
@@ -23,8 +32,16 @@ public class InMemoryTransferService implements TransferService {
                         .amount(request.getAmount())
                         .build()
         );
-        ledger.addAll(newEntries);
-        return TopupResponse.builder().txId(request.getTxId()).success(true).build();
+        Future<TopupResponse> result = ex.submit(() -> {
+            boolean b = ledger.addAll(newEntries);
+            return TopupResponse.builder().txId(request.getTxId()).success(b).build();
+        });
+        try {
+            return result.get();
+        } catch (InterruptedException | ExecutionException e) {
+            log.error(ERROR_WHILE_EXECUTING_COMMAND, e.getMessage());
+            return TopupResponse.builder().txId(request.getTxId()).success(false).build();
+        }
     }
 
     @Override
@@ -44,19 +61,33 @@ public class InMemoryTransferService implements TransferService {
                         .amount(request.getAmount())
                         .build()
         );
-        if (getCurrentBalance(request.getUserIdFrom()).compareTo(request.getAmount())<0) {
+        Future<TransferResponse> result = ex.submit(() -> {
+            if (getCurrentBalance(request.getUserIdFrom()).compareTo(request.getAmount()) < 0) {
+                return TransferResponse.builder().txId(request.getTxId()).success(false).build();
+            }
+            boolean b = ledger.addAll(newEntries);
+            return TransferResponse.builder().txId(request.getTxId()).success(b).build();
+        });
+        try {
+            return result.get();
+        } catch (InterruptedException | ExecutionException e) {
+            log.error(ERROR_WHILE_EXECUTING_COMMAND, e.getMessage());
             return TransferResponse.builder().txId(request.getTxId()).success(false).build();
         }
-        ledger.addAll(newEntries);
-        return TransferResponse.builder().txId(request.getTxId()).success(true).build();
     }
 
     @Override
     public BalanceResponse process(BalanceRequest request) {
-        return BalanceResponse.builder()
+        Future<BalanceResponse> result = ex.submit(BalanceResponse.builder()
                 .txId(request.getTxId())
-                .amount(getCurrentBalance(request.getUserId()))
-                .build();
+                .amount(getCurrentBalance(request.getUserId()))::build);
+
+        try {
+            return result.get();
+        } catch (InterruptedException | ExecutionException e) {
+            log.error(ERROR_WHILE_EXECUTING_COMMAND, e.getMessage());
+            return BalanceResponse.builder().txId(request.getTxId()).build();
+        }
     }
 
     private BigDecimal getCurrentBalance(String userId) {

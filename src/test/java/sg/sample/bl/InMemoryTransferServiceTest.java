@@ -1,15 +1,18 @@
 package sg.sample.bl;
 
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import sg.sample.model.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Optional;
+import java.util.UUID;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Slf4j
 class InMemoryTransferServiceTest {
 
     private static final String USER_A = "userA";
@@ -102,4 +105,34 @@ class InMemoryTransferServiceTest {
         assertEquals(request.getTxId(), result.getTxId());
         assertFalse(result.isSuccess());
     }
+
+
+    @Test
+    void testParallelCalls() {
+
+        target.process(TopupRequest.builder()
+                .userId("userA")
+                .amount(BigDecimal.valueOf(90))
+                .build());
+
+        IntStream.range(1, 20)
+                .mapToObj(i -> TransferRequest.builder()
+                        .txId(UUID.randomUUID().toString())
+                        .transferTs(LocalDateTime.now())
+                        .userIdFrom("userA")
+                        .userIdTo("userB")
+                        .amount(BigDecimal.TEN)
+                        .build())
+                .parallel()
+                .forEach(request -> {
+                    target.process(request);
+                });
+
+        assertEquals(19, target.ledger.size());
+        assertTrue(target.process(
+                BalanceRequest.builder().userId("userA").build())
+                .getAmount().doubleValue() < 0.0001d
+        );
+    }
+
 }

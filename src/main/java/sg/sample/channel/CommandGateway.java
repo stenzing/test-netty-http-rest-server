@@ -16,10 +16,7 @@ import java.util.function.Function;
 public class CommandGateway extends ChannelInboundHandlerAdapter {
     private final Map<Class<? extends APIRequest>, Function<APIRequest, APIResponse>> commands = new HashMap<>();
 
-    private final TransferService service;
-
     public CommandGateway(TransferService service) {
-        this.service = service;
         commands.put(TransferRequest.class, apiRequest -> service.process((TransferRequest) apiRequest));
         commands.put(BalanceRequest.class, apiRequest -> service.process((BalanceRequest) apiRequest));
         commands.put(TopupRequest.class, apiRequest -> service.process((TopupRequest) apiRequest));

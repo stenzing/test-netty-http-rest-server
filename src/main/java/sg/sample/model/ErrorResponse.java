@@ -1,18 +1,14 @@
 package sg.sample.model;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonSerializer;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.ToString;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 
 @Builder
 @AllArgsConstructor
@@ -28,8 +24,6 @@ public class ErrorResponse implements APIResponse {
     }
 
     public static class CustomSerializer extends JsonSerializer<ErrorResponse> {
-
-        private final ObjectMapper mapper = new ObjectMapper();
 
         @Override
         public void serialize(ErrorResponse errorResponse, JsonGenerator generator, SerializerProvider serializerProvider) throws IOException {
