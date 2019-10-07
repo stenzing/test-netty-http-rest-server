@@ -16,3 +16,5 @@ java -jar target/http-sample-1.0-SNAPSHOT.jar
 ```
 
 ## Api calls:
+
+The API calls are documented in the swagger document in the root.
