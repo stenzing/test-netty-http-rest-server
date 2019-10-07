@@ -1,0 +1,122 @@
+swagger: "2.0"
+info: 
+  title: "Http Servive"
+  version: "1.0"
+paths:
+  /transfer:
+    post:
+      summary: "Transfer money from user <A> to user <B>"
+      description: ""
+      operationId: "transfer"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - in: "body"
+        name: "body"
+        description: "Transaction request to process"
+        required: true
+        schema:
+          $ref: "#/definitions/TransferRequest"
+      responses:
+        200:
+          description: "successful operation"
+          schema:
+            $ref: "#/definitions/TransferResponse"
+        404:
+          description: "Invalid input"
+  /topup:
+    post:
+      summary: "Topup balance of user <A>"
+      description: ""
+      operationId: "topup"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - in: "body"
+        name: "body"
+        description: "Topup request to process"
+        required: true
+        schema:
+          $ref: "#/definitions/TopupRequest"
+      responses:
+        200:
+          description: "successful operation"
+          schema:
+            $ref: "#/definitions/TopupResponse"
+        404:
+          description: "Invalid input"
+  /balance/{userId}:
+    get:
+      summary: "Get balance by user id"
+      description: ""
+      operationId: "getBalance"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "userId"
+        in: "path"
+        description: "The user id to get the balance for"
+        required: true
+        type: "string"
+      responses:
+        200:
+          description: "successful operation"
+          schema:
+            $ref: "#/definitions/BalanceResponse"
+definitions:
+  TransferRequest:
+    type: "object"
+    properties:
+      userIdFrom:
+        type: "string"
+      userIdTo:
+        type: "string"
+      amount:
+        type: "number"
+        format: "double"
+    xml:
+      name: "TransferRequest"
+  TransferResponse:
+    type: "object"
+    properties:
+      txId:
+        type: "string"
+      success:
+        type: "boolean"
+    xml:
+      name: "TransferResponse"
+  TopupRequest:
+    type: "object"
+    properties:
+      userId:
+        type: "string"
+      amount:
+        type: "number"
+        format: "double"
+    xml:
+      name: "TopupRequest"
+  TopupResponse:
+    type: "object"
+    properties:
+      txId:
+        type: "string"
+      success:
+        type: "boolean"
+    xml:
+      name: "TopupResponse"
+  BalanceResponse:
+    type: "object"
+    properties:
+      txId:
+        type: "string"
+      amount:
+        type: "number"
+        format: "double"
+    xml:
+      name: "TopupRequest"
+
+        
